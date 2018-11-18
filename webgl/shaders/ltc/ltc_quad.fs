@@ -69,9 +69,11 @@ bool RayRectIntersect(Ray ray, Rect rect, out float t)
         vec3 pos  = ray.origin + ray.dir*t;
         vec3 lpos = pos - rect.center;
 
+        // rect 중심으로부터 거리를 잰다
         float x = dot(lpos, rect.dirx);
         float y = dot(lpos, rect.diry);
 
+        // rect 중심의로부터 거리를 비교한다
         if (abs(x) > rect.halfx || abs(y) > rect.halfy)
             intersect = false;
     }
@@ -86,6 +88,8 @@ Ray GenerateCameraRay()
 {
     Ray ray;
 
+    // gl_FragCoord: coordinates of an input fragment in view(window) space
+    // resolution: resolution of view space(window)
     vec2 xy = 2.0*gl_FragCoord.xy/resolution - vec2(1.0);
 
     ray.dir = normalize(vec3(xy, 2.0));
@@ -404,55 +408,84 @@ out vec4 FragColor;
 
 void main()
 {
+    // Initialize rectangular light's shape and position
     Rect rect;
     InitRect(rect);
 
     vec3 points[4];
     InitRectPoints(rect, points);
 
+    // The floor was defined by its normal vector
+    // In the CG field, the z-coordinate is interpreted as the depth w.r.t the camera
+    // y-coordinate: upside
     vec4 floorPlane = vec4(0, 1, 0, 0);
 
-    vec3 lcol = vec3(intensity);
-    vec3 dcol = ToLinear(dcolor);
-    vec3 scol = ToLinear(scolor);
+    vec3 lcol = vec3(intensity); // light color
+    vec3 dcol = ToLinear(dcolor); // diffuse color
+    vec3 scol = ToLinear(scolor); // specular color
 
     vec3 col = vec3(0);
 
     Ray ray = GenerateCameraRay();
 
+    // Ray-floor intersection
     float distToFloor;
     bool hitFloor = RayPlaneIntersect(ray, floorPlane, distToFloor);
+
+    // if the fragment is floor, color is obtained by rendering Eq.
     if (hitFloor)
     {
+        // ray-floor intersenction position
         vec3 pos = ray.origin + ray.dir*distToFloor;
 
-        vec3 N = floorPlane.xyz;
+        // Normal vector & Viewing vector
+        vec3 N = floorPlane.xyz; // since the floor was defined by its normal vector
         vec3 V = -ray.dir;
 
+        // viewing direction
         float ndotv = saturate(dot(N, V));
+
+        // LTCs are stored in Look-up table(LUT)
+        // LTCs are located by roughness and viewing direction 
         vec2 uv = vec2(roughness, sqrt(1.0 - ndotv));
+
+        // LTCs are stored in Look-up table
+        // calculate look-up table index
         uv = uv*LUT_SCALE + LUT_BIAS;
 
+        // Table for floor material
         vec4 t1 = texture(ltc_1, uv);
+        // Table for light source (불확실함)
         vec4 t2 = texture(ltc_2, uv);
 
+        // M^(-1)
         mat3 Minv = mat3(
             vec3(t1.x, 0, t1.y),
             vec3(  0,  1,    0),
             vec3(t1.z, 0, t1.w)
         );
 
+        // points: each vertex of the polyonal light
+        // LTC_Evaluate returns vec3 =  three color coordinates
         vec3 spec = LTC_Evaluate(N, V, pos, Minv, points, twoSided);
         // BRDF shadowing and Fresnel
+        // 뭔진 잘 모르겠다
+        // 반사광의 밝기를 조절해주는 듯 하다
         spec *= scol*t2.x + (1.0 - scol)*t2.y;
 
+        // mat3(1) = 3*3 identity matrix
+        // identity matrix에 대한 LTC는 바로 그냥 cosine이다.
+        // 즉 이에 대한 illumination을 계산한다는 것은, 
+        // perfect lambertian illumination을 계산한다는 것을 뜻한다
         vec3 diff = LTC_Evaluate(N, V, pos, mat3(1), points, twoSided);
 
         col = lcol*(spec + dcol*diff);
     }
 
+    // if the fragment is light source, color is light color
     float distToRect;
     if (RayRectIntersect(ray, rect, distToRect))
+        // floor가 light보다 뒤에 있거나 light만 존재할 때 화면에 light의 색을 그려야한다
         if ((distToRect < distToFloor) || !hitFloor)
             col = lcol;
 

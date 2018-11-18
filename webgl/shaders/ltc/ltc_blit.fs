@@ -3,6 +3,8 @@ uniform vec2 resolution;
 
 uniform sampler2D tex;
 
+// Reference Rendering Transform & Output Device Transform
+// http://shootdatapost.com/blog/2014/5/16/aces-in-10-minutes
 vec3 rrt_odt_fit(vec3 v)
 {
     vec3 a = v*(         v + 0.0245786) - 0.000090537;
@@ -38,6 +40,8 @@ vec3 saturate(vec3 v)
     return vec3(saturate(v.x), saturate(v.y), saturate(v.z));
 }
 
+// Academy Color Encoding System
+// http://shootdatapost.com/blog/2014/5/16/aces-in-10-minutes
 vec3 aces_fitted(vec3 color)
 {
     mat3 ACES_INPUT_MAT = mat3_from_rows(
@@ -68,6 +72,7 @@ vec3 PowVec3(vec3 v, float p)
     return vec3(pow(v.x, p), pow(v.y, p), pow(v.z, p));
 }
 
+// Gamma correction
 const float gamma = 2.2;
 vec3 ToSRGB(vec3 v) { return PowVec3(v, 1.0/gamma); }
 
@@ -75,15 +80,21 @@ out vec4 FragColor;
 
 void main()
 {
+    // 화면에서 보이는 색 조정에 관한 코드들인듯 하다
+    
+    // Needs texture coordinates in range [0,1]
     vec2 pos = gl_FragCoord.xy/resolution;
 
+    // Texture mapping
     vec4 col = texture(tex, pos);
 
     // Rescale by number of samples
     col /= col.w;
 
+    // Color transformation
     col.rgb = aces_fitted(col.rgb);
     col.rgb = ToSRGB(col.rgb);
 
+    // Displayed color
     FragColor = vec4(col);
 }
