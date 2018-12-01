@@ -19,7 +19,7 @@ uniform float height;
 uniform float roty;
 uniform float rotz;
 
-uniform bool twoSided;
+bool twoSided = true;
 uniform bool clipless;
 
 uniform sampler2D ltc_1;
@@ -388,6 +388,19 @@ void InitRectPoints(Rect rect, out vec3 points[4])
     points[3] = rect.center - ex + ey;
 }
 
+void InitObstacle(out Rect square, vec3 center, float w, float h)
+{
+    square.dirx = rotation_yz(vec3(1, 0, 0), roty*2.0*pi, rotz*2.0*pi); // should be an unit vector
+    square.diry = rotation_yz(vec3(0, 1, 0), roty*2.0*pi, rotz*2.0*pi);
+
+    square.center = center;
+    square.halfx  = 0.5*w;
+    square.halfy  = 0.5*h;
+
+    vec3 rectNormal = cross(square.dirx, square.diry);
+    square.plane = vec4(rectNormal, -dot(rectNormal, square.center));   
+}
+
 // Misc. helpers
 ////////////////
 
@@ -411,9 +424,14 @@ void main()
     // Initialize rectangular light's shape and position
     Rect rect;
     InitRect(rect);
-
     vec3 points[4];
     InitRectPoints(rect, points);
+
+    // Initialize a square obstacle
+    Rect obstacle;
+    InitObstacle(obstacle, vec3(2,2,28), 4.0, 4.0);
+    vec3 obstaclePoints[4];
+    InitRectPoints(obstacle, obstaclePoints);
 
     // The floor was defined by its normal vector
     // In the CG field, the z-coordinate is interpreted as the depth w.r.t the camera
@@ -424,7 +442,7 @@ void main()
     vec3 dcol = ToLinear(dcolor); // diffuse color
     vec3 scol = ToLinear(scolor); // specular color
 
-    vec3 col = vec3(0);
+    vec3 col = vec3(1);
 
     Ray ray = GenerateCameraRay();
 
@@ -482,12 +500,34 @@ void main()
         col = lcol*(spec + dcol*diff);
     }
 
+    // Ray-obstacle intersection
+    float distToObstacle;
+    bool hitObstacle = RayRectIntersect(ray, obstacle, distToObstacle);
+
     // if the fragment is light source, color is light color
     float distToRect;
-    if (RayRectIntersect(ray, rect, distToRect))
-        // floor가 light보다 뒤에 있거나 light만 존재할 때 화면에 light의 색을 그려야한다
+    bool hitLight = RayRectIntersect(ray, rect, distToRect);
+
+    if (hitLight)
+    {
         if ((distToRect < distToFloor) || !hitFloor)
+        {
             col = lcol;
+        }
+    }
+    
+    if (hitObstacle)
+    {
+        // obstacle을 그릴 조건. 
+        if (((distToObstacle < distToFloor) || !hitFloor) 
+            && ((distToObstacle < distToRect) || !hitLight))
+        {
+            // Dummy color, just for now
+            col = vec3(0);
+        }
+    }
+    
+    // 아무것도 없는 곳에는 col = vec3(0) 이다
 
     FragColor = vec4(col, 1.0);
 }
