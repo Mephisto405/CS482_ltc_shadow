@@ -287,11 +287,11 @@ vec3 LTC_Evaluate(
     Minv = mul(Minv, transpose(mat3(T1, T2, N)));
 
     // polygon (allocate 5 vertices for clipping)
-    vec3 L[5];
-    L[0] = mul(Minv, points[0] - P);
-    L[1] = mul(Minv, points[1] - P);
-    L[2] = mul(Minv, points[2] - P);
-    L[3] = mul(Minv, points[3] - P);
+    vec3 L[points.length()+1];
+    for(int i = 0; i < points.length(); i++)
+    {
+        L[i] = mul(Minv, points[i] - P);
+    }
 
     // integrate
     float sum = 0.0;
