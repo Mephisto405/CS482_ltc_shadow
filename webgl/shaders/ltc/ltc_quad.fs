@@ -409,7 +409,6 @@ struct Plane{
     vec3 pt;
     vec3 eu;
     vec3 ev;
-    
 };
 
 // get plane defined by 3 points 
@@ -448,6 +447,102 @@ vec2 planePtUV(Plane plane, vec3 ptXYZ){
 vec3 UVtoXYZ(Plane plane, vec2 uv){
     vec3 ptXYZ = plane.pt + uv[0]*plane.eu + uv[1]*plane.eu;
     return ptXYZ;
+}
+
+
+// check if P is inside polygon edge ep1->ep2
+bool inside(vec2 P, vec2 ep1, vec2 ep2){
+    vec3 v1 = vec3(ep2[0]-ep1[0], ep2[1]-ep1[1], 0.0);
+    vec3 v2 = vec3(P[0]-ep1[0], P[1]-ep1[1], 0.0);
+    vec3 res = cross(v1, v2);
+    return res[2] > 0.0;
+}
+
+// get cross intersection point of two straight lines
+vec2 cross_pt(vec2 p1, vec2 p2, vec2 q1, vec2 q2){
+    // p1 + t*Vp = q1 + s*Vq
+    // t*Vp - s*Vq = q1 - p1
+    // [t -s] = inv([Vp Vq])*(q1 - p1)
+    vec2 Vp = p2 - p1;
+    vec2 Vq = q2 - q1;
+    vec2 coords = inverse(mat2(Vp, Vq))*(q1 - p1);
+    return p1+coords[0]*Vp;
+}
+
+// get clipped obstacle. all lists are couter-clockwise
+void clipObstacleUV(out vec2 outputList[8], out int num_vertex, vec2 light[4], vec2 obstacle[4]){
+    // Use Sutherland-Hodgeman algorithm to compute intersection of CONVEX polygons
+    vec2 ep1, ep2;
+    vec2 inputList[8];
+    vec2 S, E;
+    
+    num_vertex = 4; // number of vertices in current clipped polygon
+    // outputList = obstacle;
+    for(int v = 0; v < num_vertex; v++){
+        outputList[v] = obstacle[v];
+    }
+    int num_clip = 4; // number of clip edges (light)
+    for(int e = 0; e < num_clip; e++){
+
+        // get two edge points
+        ep1 = light[e];
+        ep2 = light[(e+1)%num_clip];
+
+        // get new vertices
+        inputList = outputList;
+        int vertex_cnt = 0;
+        S = inputList[num_vertex - 1]; // previous vertex
+        for(int v = 0; v < num_vertex; v++){
+            // traverse polygon to add / skip / create vertices
+            E = inputList[v]; // current vertex
+            if(inside(E, ep1, ep2)){
+                if(!inside(S, ep1, ep2)){
+                    // intersection
+                    outputList[vertex_cnt] = cross_pt(S, E, ep1, ep2);
+                    vertex_cnt++;
+                }
+                outputList[vertex_cnt] = E; // E included
+                vertex_cnt++;
+            }
+            else{
+                if(inside(S, ep1, ep2)){
+                    // intersection
+                    outputList[vertex_cnt] = cross_pt(S, E, ep1, ep2);
+                    vertex_cnt++;
+                }
+                // E excluded
+            }
+            S = E;
+        }
+        num_vertex = vertex_cnt;
+    }
+}
+
+// perspective-project obstacle to light plane, and then clip it by light edges
+void clipProjectObstacle(out vec3 result[8], out int num_vertex, vec3 light[4], vec3 obstacle[4], vec3 viewPt){
+
+    Plane lightPlane;
+    vec2 lightUV[4];
+    vec2 obstacleUV[4];
+    vec2 clippedUV[8];
+
+    // perspective projection in light plane coordinates
+    getPlane(lightPlane, light[0], light[1], light[2]);
+    for(int i = 0; i < 4; i++){
+        lightUV[i] = planePtUV(lightPlane, light[i]);
+    }
+    for(int i = 0; i < 4; i++){
+        obstacleUV[i] = projPersp(lightPlane, viewPt, obstacle[i]);
+    }
+
+    // clipping by light edges
+    clipObstacleUV(clippedUV, num_vertex, lightUV, obstacleUV);
+
+    // recover from light plane coordinates
+    for(int i = 0; i < num_vertex; i++){
+        result[i] = UVtoXYZ(lightPlane, clippedUV[i]);
+    }
+
 }
 
 // Misc. helpers
