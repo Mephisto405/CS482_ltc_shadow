@@ -338,20 +338,17 @@ vec3 LTC_Evaluate(
         if (n == 0)
             return vec3(0, 0, 0);
         // project onto sphere
-        L[0] = normalize(L[0]);
-        L[1] = normalize(L[1]);
-        L[2] = normalize(L[2]);
-        L[3] = normalize(L[3]);
-        L[4] = normalize(L[4]);
+        for(int i = 0; i < n; i++)
+        {
+            L[i] = normalize(L[i]);
+        }
 
         // integrate
-        sum += IntegrateEdge(L[0], L[1]);
-        sum += IntegrateEdge(L[1], L[2]);
-        sum += IntegrateEdge(L[2], L[3]);
-        if (n >= 4)
-            sum += IntegrateEdge(L[3], L[4]);
-        if (n == 5)
-            sum += IntegrateEdge(L[4], L[0]);
+        for(int i = 0; i < n-1; i++)
+        {
+            sum += IntegrateEdge(L[i], L[i+1]);
+        }
+        sum += IntegrateEdge(L[n-1], L[0]);
 
         sum = twoSided ? abs(sum) : max(0.0, sum);
     }
