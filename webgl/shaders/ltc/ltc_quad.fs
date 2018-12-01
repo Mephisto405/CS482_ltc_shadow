@@ -409,6 +409,7 @@ struct Plane{
     vec3 pt;
     vec3 eu;
     vec3 ev;
+    
 };
 
 // get plane defined by 3 points 
@@ -416,7 +417,7 @@ void getPlane(out Plane plane, vec3 p1, vec3 p2, vec3 p3){
     plane.pt = p1;
     plane.eu = p2 - p1;
     plane.ev = p3 - p1;
-    // making orthonormal bases might help vertex simplification
+    // making orthonormal bases might help vertex simplification and performance
 }
 
 // perspective projection to a plane, get UV coordinate in plane
@@ -429,9 +430,18 @@ vec2 projPersp(Plane plane, vec3 viewPt, vec3 projXYZ){
 
     mat3 bases = mat3(plane.eu, plane.ev, projXYZ - viewPt);
     mat3 invBases = inverse(bases);
-    mat3 coords = invBases*(viewPt - plane.pt);
+    vec3 coords = invBases*(viewPt - plane.pt);
     vec2 projUV = vec2(coords[0], coords[1]);
     return projUV;
+}
+
+// get UV coordinate of a point on a plane
+vec2 planePtUV(Plane plane, vec3 ptXYZ){
+    mat3 bases = mat3(plane.eu, plane.ev, cross(plane.eu, plane.ev));
+    mat3 invBases = inverse(bases);
+    vec3 coords = invBases*(ptXYZ - plane.pt);
+    vec2 ptUV = vec2(coords[0], coords[1]);
+    return ptUV;
 }
 
 // convert plane 2D coordinate (uv) to XYZ coordinate point
