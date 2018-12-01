@@ -401,6 +401,45 @@ void InitObstacle(out Rect square, vec3 center, float w, float h)
     square.plane = vec4(rectNormal, -dot(rectNormal, square.center));   
 }
 
+// Geometry Helpers
+///////////////////
+
+// defined by a point on a plane, and two basis vectors for UV coordinate
+struct Plane{
+    vec3 pt;
+    vec3 eu;
+    vec3 ev;
+};
+
+// get plane defined by 3 points 
+void getPlane(out Plane plane, vec3 p1, vec3 p2, vec3 p3){
+    plane.pt = p1;
+    plane.eu = p2 - p1;
+    plane.ev = p3 - p1;
+    // making orthonormal bases might help vertex simplification
+}
+
+// perspective projection to a plane, get UV coordinate in plane
+vec2 projPersp(Plane plane, vec3 viewPt, vec3 projXYZ){
+    // some linear algebra...
+    // Planept + cu*Eu + cv*Ev = ProjectionPt =  Viewpt + t*Raydir
+    // cu*Eu + cv*Ev - t*Raydir = Viewpt - Planept
+    // [Eu Ev Raydir]*([cu cv -t]') = (Viewpt - Planept)
+    // [cu cv -t] = inv([Eu Ev Raydir])*(Viewpt - Planept)
+
+    mat3 bases = mat3(plane.eu, plane.ev, projXYZ - viewPt);
+    mat3 invBases = inverse(bases);
+    mat3 coords = invBases*(viewPt - plane.pt);
+    vec2 projUV = vec2(coords[0], coords[1]);
+    return projUV;
+}
+
+// convert plane 2D coordinate (uv) to XYZ coordinate point
+vec3 UVtoXYZ(Plane plane, vec2 uv){
+    vec3 ptXYZ = plane.pt + uv[0]*plane.eu + uv[1]*plane.eu;
+    return ptXYZ;
+}
+
 // Misc. helpers
 ////////////////
 
