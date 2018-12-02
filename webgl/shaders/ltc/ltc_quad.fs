@@ -1,6 +1,7 @@
 // bind shadow      {label:"Shadow On", default:true}
-
 // bind shadow_debug {label:"Debug mode", default:true}
+// bind second_obstacle {label: "Second Obstacle", default:false}
+
 // bind targetu     {label:"Target u", default:0.0, min:-1.0, max:1.0, step:0.01}
 // bind targetv     {label:"Target v", default:0.0, min:-1.0, max:1.0, step:0.01}
 
@@ -8,7 +9,7 @@
 // bind height_obstacle      {label:"Obstacle Height", default: 8, min:0.1, max:15, step:0.1}
 // bind roty_obstacle        {label:"Obstacle Rotation Y", default: 0, min:0, max:1, step:0.001}
 // bind rotx_obstacle        {label:"Obstacle Rotation Z", default: 0, min:0, max:1, step:0.001}
-// bind posx                 {label:"Obstacle Position X", default: 3, min:0, max:10, step:0.1}
+// bind posx                 {label:"Obstacle Position X", default: 5, min:0, max:10, step:0.1}
 
 // bind roughness   {label:"Roughness", default:0.25, min:0.01, max:1, step:0.001}
 // bind dcolor      {label:"Diffuse Color",  r:1.0, g:1.0, b:1.0}
@@ -45,6 +46,7 @@ bool twoSided = true;
 uniform bool clipless;
 uniform bool shadow_debug;
 uniform bool shadow;
+uniform bool second_obstacle;
 
 uniform sampler2D ltc_1;
 uniform sampler2D ltc_2;
@@ -786,6 +788,19 @@ void main()
             spec -= obstacle_spec;
             vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
             diff -= obstacle_diff;
+
+            if (second_obstacle)
+            {
+                // Obstacle LTC Evaluate
+                int num_vertex2;
+                vec3 clipped_points2[8];
+                clipProjectObstacle(clipped_points2, num_vertex2, points, obstaclePoints2, pos);
+        
+                vec3 obstacle_spec2 = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points2, num_vertex2, twoSided);
+                spec -= obstacle_spec2;
+                vec3 obstacle_diff2 = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points2, num_vertex2, twoSided);
+                diff -= obstacle_diff2;
+            }
         }
 
         spec *= scol*t2.x + (1.0 - scol)*t2.y;
@@ -799,8 +814,6 @@ void main()
     // if the fragment is light source, color is light color
     float distToRect;
     bool hitLight = RayRectIntersect(ray, rect, distToRect);
-
-
 
     if (hitLight)
     {
@@ -821,7 +834,22 @@ void main()
         }
     }
 
-    
+    if (second_obstacle)
+    {
+        float distToObstacle2;
+        bool hitObstacle2 = RayRectIntersect(ray, obstacle2, distToObstacle2);
+        if (hitObstacle2)
+        {
+            // obstacle을 그릴 조건. 
+            if (((distToObstacle2 < distToFloor) || !hitFloor) 
+                && ((distToObstacle2 < distToRect) || !hitLight))
+            {
+                // Dummy color, just for now
+                col = vec3(0);
+            }
+        }
+    }
+
     if(shadow_debug){
 
         // target view point
@@ -847,7 +875,7 @@ void main()
         // display target view point
         bool hitViewPt = camHitPoint(viewPt);
         if(hitViewPt){
-            col = vec3(0,0,1);
+            col = vec3(1,0,0);
         }
         
         
@@ -860,7 +888,7 @@ void main()
             vec3 target = noclipped_points[i];
             bool hitViewPt = camHitPoint(target);
             if(hitViewPt){
-                col = vec3(0,1,0);
+                col = vec3(1,0,0);
             }
         }
         for(int i=0; i<nv; i++){
