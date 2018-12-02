@@ -1,3 +1,5 @@
+// bind targetu     {label:"Target u", default:0.0, min:-1.0, max:1.0, step:0.01}
+// bind targetv     {label:"Target v", default:0.0, min:-1.0, max:1.0, step:0.01}
 // bind roughness   {label:"Roughness", default:0.25, min:0.01, max:1, step:0.001}
 // bind dcolor      {label:"Diffuse Color",  r:1.0, g:1.0, b:1.0}
 // bind scolor      {label:"Specular Color", r:0.23, g:0.23, b:0.23}
@@ -9,6 +11,7 @@
 // bind twoSided    {label:"Two-sided", default:false}
 // bind clipless    {label:"Clipless Approximation", default:false}
 
+
 uniform float roughness;
 uniform vec3  dcolor;
 uniform vec3  scolor;
@@ -18,6 +21,8 @@ uniform float width;
 uniform float height;
 uniform float roty;
 uniform float rotz;
+uniform float targetu;
+uniform float targetv;
 
 bool twoSided = true;
 uniform bool clipless;
@@ -438,7 +443,7 @@ void InitObstacle(out Rect square, vec3 center, float w, float h)
     square.plane = vec4(rectNormal, -dot(rectNormal, square.center));   
 }
 
-// Geometry Helpers
+// Shadow Geometry Helpers
 ///////////////////
 
 // defined by a point on a plane, and two basis vectors for UV coordinate
@@ -468,6 +473,11 @@ vec2 projPersp(Plane plane, vec3 viewPt, vec3 projXYZ){
     mat3 invBases = inverse(bases);
     vec3 coords = invBases*(viewPt - plane.pt);
     vec2 projUV = vec2(coords[0], coords[1]);
+
+    // DEBUG: a fake statement!
+    vec2 zero = vec2(targetu, targetv);
+    projUV + 0.0*zero;
+
     return projUV;
 }
 
@@ -581,6 +591,40 @@ void clipProjectObstacle(out vec3 result[8], out int num_vertex, vec3 light[4], 
     }
 
 }
+
+
+// Shadow Debug Helpers
+///////////////////////
+
+bool camHitPoint(vec3 x0){
+    Ray ray = GenerateCameraRay();
+    vec3 x1 = ray.origin;
+    vec3 x2 = x1 + ray.dir;
+    // dist between line and point
+    float thres = 0.1;
+    float d = length(cross(x0 - x1, x0 - x2))/length(x1 - x2);
+    if(d < thres){
+        return true;
+    }
+    else{
+        return false;
+    }
+}
+
+
+bool camHitRay(Ray targetRay){
+    Ray camRay = GenerateCameraRay();
+    vec3 n = cross(camRay.dir, targetRay.dir);
+    float d = abs(dot(n, camRay.origin - targetRay.origin))/length(n);
+    float thres = 0.05;
+    if(d < thres){
+        return true;
+    }
+    else{
+        return false;
+    }
+}
+
 
 // Misc. helpers
 ////////////////
@@ -705,6 +749,8 @@ void main()
     float distToRect;
     bool hitLight = RayRectIntersect(ray, rect, distToRect);
 
+
+
     if (hitLight)
     {
         if ((distToRect < distToFloor) || !hitFloor)
@@ -723,6 +769,48 @@ void main()
             col = vec3(0);
         }
     }
+
+    
+    bool shadow_debug = true;
+    if(shadow_debug){
+
+        // target view point
+        float targetScale = 15.0;
+        vec3 viewPt = vec3(0.0+targetScale*targetu, 0.0, 10.0+targetScale*targetv);
+
+        // get clipped vertices
+        InitRectPoints(rect, points);
+        int num_vertex;
+        vec3 clipped_points[8];
+        clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, viewPt);
+
+        // example ray from view point
+        Ray ray1;
+        ray1.origin = viewPt;
+        vec3 rayTo = obstaclePoints[1];
+        ray1.dir = rayTo - viewPt;
+        bool hitViewRay = camHitRay(ray1);
+        if(hitViewRay){
+            col = vec3(0,1,0);
+        }
+
+        // display target view point
+        bool hitViewPt = camHitPoint(viewPt);
+        if(hitViewPt){
+            col = vec3(0,0,1);
+        }
+        
+        for(int i = 0; i < num_vertex; i++){
+            // display target view point
+            vec3 target = clipped_points[i];
+            bool hitViewPt = camHitPoint(target);
+            if(hitViewPt){
+                col = vec3(1,0,0);
+            }
+        }
+        
+    }
+    
     
     // 아무것도 없는 곳에는 col = vec3(0) 이다
 

@@ -474,7 +474,6 @@ function createProgram(vertex, fragment) {
     var nb_uniforms = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
     for (var i = 0; i < nb_uniforms; i++) {
         var uni = gl.getActiveUniform(program, i);
-
         var label = uni.name;
         var bind = bindings[uni.name];
         if (bind && typeof(bind.label) === "string")
