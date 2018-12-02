@@ -1,5 +1,12 @@
+// bind shadow_debug {label:"Debug mode", default:true}
 // bind targetu     {label:"Target u", default:0.0, min:-1.0, max:1.0, step:0.01}
 // bind targetv     {label:"Target v", default:0.0, min:-1.0, max:1.0, step:0.01}
+
+// bind width_obstacle       {label:"Obstacle Width",  default: 8, min:0.1, max:15, step:0.1}
+// bind height_obstacle      {label:"Obstacle Height", default: 8, min:0.1, max:15, step:0.1}
+// bind roty_obstacle        {label:"Obstacle Rotation Y", default: 0, min:0, max:1, step:0.001}
+// bind rotx_obstacle        {label:"Obstacle Rotation Z", default: 0, min:0, max:1, step:0.001}
+
 // bind roughness   {label:"Roughness", default:0.25, min:0.01, max:1, step:0.001}
 // bind dcolor      {label:"Diffuse Color",  r:1.0, g:1.0, b:1.0}
 // bind scolor      {label:"Specular Color", r:0.23, g:0.23, b:0.23}
@@ -24,8 +31,15 @@ uniform float rotz;
 uniform float targetu;
 uniform float targetv;
 
+// obstacle shape
+uniform float width_obstacle;
+uniform float height_obstacle;
+uniform float roty_obstacle;
+uniform float rotx_obstacle;
+
 bool twoSided = true;
 uniform bool clipless;
+uniform bool shadow_debug;
 
 uniform sampler2D ltc_1;
 uniform sampler2D ltc_2;
@@ -677,7 +691,7 @@ void main()
 
     // Initialize a square obstacle
     Rect obstacle;
-    InitObstacle(obstacle, vec3(2,7,28), 4.0, 4.0);
+    InitObstacle(obstacle, vec3(2,7,28), width_obstacle, height_obstacle);
     vec3 obstaclePoints[4];
     InitRectPoints(obstacle, obstaclePoints);
 
@@ -737,8 +751,7 @@ void main()
         clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, pos);
 
         vec3 obstacle_spec = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points, num_vertex, twoSided);
-        vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
-
+    
         // points: each vertex of the polyonal light
         // LTC_Evaluate returns vec3 =  three color coordinates
         vec3 spec = LTC_Evaluate(N, V, pos, Minv, points, twoSided);
@@ -758,6 +771,8 @@ void main()
         // identity matrix에 대한 LTC는 바로 그냥 cosine이다.
         // 즉 이에 대한 illumination을 계산한다는 것은, 
         // perfect lambertian illumination을 계산한다는 것을 뜻한다
+
+        vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
         vec3 diff = LTC_Evaluate(N, V, pos, mat3(1), points, twoSided);
         diff -= obstacle_diff;
 
@@ -794,7 +809,6 @@ void main()
     }
 
     
-    bool shadow_debug = true;
     if(shadow_debug){
 
         // target view point
