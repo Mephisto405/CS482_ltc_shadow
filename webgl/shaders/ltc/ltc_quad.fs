@@ -492,7 +492,7 @@ vec2 planePtUV(Plane plane, vec3 ptXYZ){
 
 // convert plane 2D coordinate (uv) to XYZ coordinate point
 vec3 UVtoXYZ(Plane plane, vec2 uv){
-    vec3 ptXYZ = plane.pt + uv[0]*plane.eu + uv[1]*plane.eu;
+    vec3 ptXYZ = plane.pt + uv[0]*plane.eu + uv[1]*plane.ev;
     return ptXYZ;
 }
 
@@ -592,6 +592,29 @@ void clipProjectObstacle(out vec3 result[8], out int num_vertex, vec3 light[4], 
 
 }
 
+// prespective project obstacle to light plane, no clipping
+void projectObstacle(out vec3 result[8], out int num_vertex, vec3 light[4], vec3 obstacle[4], vec3 viewPt){
+
+    Plane lightPlane;
+    vec2 lightUV[4];
+    vec2 obstacleUV[4];
+
+    // perspective projection in light plane coordinates
+    getPlane(lightPlane, light[0], light[1], light[2]);
+    for(int i = 0; i < 4; i++){
+        lightUV[i] = planePtUV(lightPlane, light[i]);
+    }
+    for(int i = 0; i < 4; i++){
+        obstacleUV[i] = projPersp(lightPlane, viewPt, obstacle[i]);
+    }
+    num_vertex = 4;
+    // recover from light plane coordinates
+    for(int i = 0; i < 4; i++){
+        result[i] = UVtoXYZ(lightPlane, obstacleUV[i]);
+    }
+
+}
+
 
 // Shadow Debug Helpers
 ///////////////////////
@@ -654,7 +677,7 @@ void main()
 
     // Initialize a square obstacle
     Rect obstacle;
-    InitObstacle(obstacle, vec3(2,7,28), 4.0, 14.0);
+    InitObstacle(obstacle, vec3(2,7,28), 4.0, 4.0);
     vec3 obstaclePoints[4];
     InitRectPoints(obstacle, obstaclePoints);
 
@@ -781,9 +804,7 @@ void main()
         // get clipped vertices
         InitRectPoints(rect, points);
         int num_vertex;
-        vec3 clipped_points[8];
-        clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, viewPt);
-
+        
         // example ray from view point
         Ray ray1;
         ray1.origin = viewPt;
@@ -800,8 +821,11 @@ void main()
             col = vec3(0,0,1);
         }
         
+        
+        // display clipped points
+        vec3 clipped_points[8];
+        clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, viewPt);
         for(int i = 0; i < num_vertex; i++){
-            // display target view point
             vec3 target = clipped_points[i];
             bool hitViewPt = camHitPoint(target);
             if(hitViewPt){
@@ -809,6 +833,18 @@ void main()
             }
         }
         
+        /*
+        // display nonclipped points
+        vec3 nonclipped_points[8];
+        projectObstacle(nonclipped_points, num_vertex, points, obstaclePoints, viewPt);
+        for(int i = 0; i < num_vertex; i++){
+            vec3 target = nonclipped_points[i];
+            bool hitViewPt = camHitPoint(target);
+            if(hitViewPt){
+                col = vec3(1,0,0);
+            }
+        }
+        */
     }
     
     
