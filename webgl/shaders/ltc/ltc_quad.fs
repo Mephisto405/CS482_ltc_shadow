@@ -674,6 +674,24 @@ bool camHitRay(Ray targetRay){
     }
 }
 
+bool camHitSegment(vec3 p1, vec3 p2){
+    Ray camRay = GenerateCameraRay();
+    Ray targetRay;
+    targetRay.origin = p1;
+    targetRay.dir = p2 - p1;
+    vec3 n = cross(targetRay.dir, camRay.dir);
+    vec3 n2 = cross(camRay.dir, n);
+    float d = abs(dot(n, targetRay.origin - camRay.origin))/length(n);
+    float t = dot(camRay.origin - targetRay.origin, n2)/dot(targetRay.dir, n2);
+    float thres = 0.05;
+    if(d<thres && t > 0.0 && t < 1.0){
+        return true;
+    }
+    else{
+        return false;
+    }
+}
+
 
 // Misc. helpers
 ////////////////
@@ -859,31 +877,41 @@ void main()
         // get clipped vertices
         InitRectPoints(rect, points);
         int num_vertex;
-        
-        /*
-        // example ray from view point
-        Ray ray1;
-        ray1.origin = viewPt;
-        vec3 rayTo = obstaclePoints[1];
-        ray1.dir = rayTo - viewPt;
-        bool hitViewRay = camHitRay(ray1);
-        if(hitViewRay){
-            col = vec3(0,1,0);
-        }
-        */
 
-        // display target view point
-        bool hitViewPt = camHitPoint(viewPt);
-        if(hitViewPt){
-            col = vec3(1,0,0);
-        }
-        
-        
-        // display clipped points
         vec3 clipped_points[8];
         vec3 noclipped_points[8];
         int nv;
         getDebugPoints(noclipped_points, clipped_points, nv, points, obstaclePoints, viewPt);
+        
+
+        // display view ray segments
+        for(int i=0; i<4; i++){
+            bool hitSegment = camHitSegment(viewPt, noclipped_points[i]);
+            if(hitSegment){
+                col = vec3(0,0.2,0);
+            }
+        }
+        // display unclipped polygon
+        for(int i=0; i<4; i++){
+            vec3 p1 = noclipped_points[i];
+            vec3 p2 = noclipped_points[(i+1)%4];
+            bool hitViewPt = camHitSegment(p1, p2);
+            if(hitViewPt){
+                col = vec3(0,0.2,0);
+            }
+        }
+        // display clipped polygon
+        for(int i=0; i<nv; i++){
+            vec3 p1 = clipped_points[i];
+            vec3 p2 = clipped_points[(i+1)%nv];
+            bool hitViewPt = camHitSegment(p1, p2);
+            if(hitViewPt){
+                col = vec3(0,0.5,0.8);
+            }
+        }
+
+        /*
+        // display clipped points
         for(int i=0; i<4; i++){
             vec3 target = noclipped_points[i];
             bool hitViewPt = camHitPoint(target);
@@ -898,7 +926,13 @@ void main()
                 col = vec3(0,0,1);
             }
         }
-        
+        */
+        // display target view point
+        bool hitViewPt = camHitPoint(viewPt);
+        if(hitViewPt){
+            col = vec3(0,0,1);
+        }
+
     }
     
     
