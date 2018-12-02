@@ -1,5 +1,5 @@
 // bind shadow      {label:"Shadow On", default:true}
-// bind shadow_debug {label:"Debug mode", default:true}
+// bind shadow_debug {label:"Debug mode", default:false}
 // bind second_obstacle {label: "Second Obstacle", default:false}
 
 // bind targetu     {label:"Target u", default:0.0, min:-1.0, max:1.0, step:0.01}
@@ -8,7 +8,7 @@
 // bind width_obstacle       {label:"Obstacle Width",  default: 8, min:0.1, max:15, step:0.1}
 // bind height_obstacle      {label:"Obstacle Height", default: 8, min:0.1, max:15, step:0.1}
 // bind roty_obstacle        {label:"Obstacle Rotation Y", default: 0, min:0, max:1, step:0.001}
-// bind rotx_obstacle        {label:"Obstacle Rotation Z", default: 0, min:0, max:1, step:0.001}
+// bind rotz_obstacle        {label:"Obstacle Rotation Z", default: 0, min:0, max:1, step:0.001}
 // bind posx                 {label:"Obstacle Position X", default: 5, min:0, max:10, step:0.1}
 
 // bind roughness   {label:"Roughness", default:0.25, min:0.01, max:1, step:0.001}
@@ -17,7 +17,7 @@
 // bind intensity   {label:"Light Intensity", default:4, min:0, max:10}
 // bind width       {label:"Width",  default: 8, min:0.1, max:15, step:0.1}
 // bind height      {label:"Height", default: 8, min:0.1, max:15, step:0.1}
-// bind roty        {label:"Rotation Y", default: 0, min:0, max:1, step:0.001}
+// bind roty        {label:"Rotation Y", default: 0, min:-0.5, max:0.5, step:0.001}
 // bind rotz        {label:"Rotation Z", default: 0, min:0, max:1, step:0.001}
 // bind twoSided    {label:"Two-sided", default:false}
 // bind clipless    {label:"Clipless Approximation", default:false}
@@ -39,10 +39,10 @@ uniform float targetv;
 uniform float width_obstacle;
 uniform float height_obstacle;
 uniform float roty_obstacle;
-uniform float rotx_obstacle;
+uniform float rotz_obstacle;
 uniform float posx;
 
-bool twoSided = true;
+bool twoSided = false;
 uniform bool clipless;
 uniform bool shadow_debug;
 uniform bool shadow;
@@ -453,8 +453,8 @@ void InitRectPoints(Rect rect, out vec3 points[4])
 
 void InitObstacle(out Rect square, vec3 center, float w, float h)
 {
-    square.dirx = rotation_yz(vec3(1, 0, 0), roty*2.0*pi, rotz*2.0*pi); // should be an unit vector
-    square.diry = rotation_yz(vec3(0, 1, 0), roty*2.0*pi, rotz*2.0*pi);
+    square.dirx = rotation_yz(vec3(1, 0, 0), roty_obstacle*2.0*pi, rotz_obstacle*2.0*pi); // should be an unit vector
+    square.diry = rotation_yz(vec3(0, 1, 0), roty_obstacle*2.0*pi, rotz_obstacle*2.0*pi);
 
     square.center = center;
     square.halfx  = 0.5*w;
