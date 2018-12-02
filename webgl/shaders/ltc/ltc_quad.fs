@@ -8,6 +8,7 @@
 // bind height_obstacle      {label:"Obstacle Height", default: 8, min:0.1, max:15, step:0.1}
 // bind roty_obstacle        {label:"Obstacle Rotation Y", default: 0, min:0, max:1, step:0.001}
 // bind rotx_obstacle        {label:"Obstacle Rotation Z", default: 0, min:0, max:1, step:0.001}
+// bind posx                 {label:"Obstacle Position X", default: 3, min:0, max:10, step:0.1}
 
 // bind roughness   {label:"Roughness", default:0.25, min:0.01, max:1, step:0.001}
 // bind dcolor      {label:"Diffuse Color",  r:1.0, g:1.0, b:1.0}
@@ -38,6 +39,7 @@ uniform float width_obstacle;
 uniform float height_obstacle;
 uniform float roty_obstacle;
 uniform float rotx_obstacle;
+uniform float posx;
 
 bool twoSided = true;
 uniform bool clipless;
@@ -694,9 +696,14 @@ void main()
 
     // Initialize a square obstacle
     Rect obstacle;
-    InitObstacle(obstacle, vec3(2,7,28), width_obstacle, height_obstacle);
+    InitObstacle(obstacle, vec3(posx,7,28), width_obstacle, height_obstacle);
     vec3 obstaclePoints[4];
     InitRectPoints(obstacle, obstaclePoints);
+
+    Rect obstacle2;
+    InitObstacle(obstacle2, vec3(-posx,7,28), width_obstacle, height_obstacle);
+    vec3 obstaclePoints2[4];
+    InitRectPoints(obstacle2, obstaclePoints2);
 
     // The floor was defined by its normal vector
     // In the CG field, the z-coordinate is interpreted as the depth w.r.t the camera
