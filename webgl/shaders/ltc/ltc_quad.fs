@@ -1,3 +1,5 @@
+// bind shadow      {label:"Shadow On", default:true}
+
 // bind shadow_debug {label:"Debug mode", default:true}
 // bind targetu     {label:"Target u", default:0.0, min:-1.0, max:1.0, step:0.01}
 // bind targetv     {label:"Target v", default:0.0, min:-1.0, max:1.0, step:0.01}
@@ -40,6 +42,7 @@ uniform float rotx_obstacle;
 bool twoSided = true;
 uniform bool clipless;
 uniform bool shadow_debug;
+uniform bool shadow;
 
 uniform sampler2D ltc_1;
 uniform sampler2D ltc_2;
@@ -750,37 +753,35 @@ void main()
             vec3(t1.z, 0, t1.w)
         );
 
-        // Obstacle LTC Evaluate
-        int num_vertex;
-        vec3 clipped_points[8];
-        clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, pos);
-
-        vec3 obstacle_spec = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points, num_vertex, twoSided);
-    
         // points: each vertex of the polyonal light
         // LTC_Evaluate returns vec3 =  three color coordinates
         vec3 spec = LTC_Evaluate(N, V, pos, Minv, points, twoSided);
-        spec -= obstacle_spec;
-        
-        // if (num_vertex == 0)
-        // {
-        //     spec *= 2.0;
-        // }
 
         // BRDF shadowing and Fresnel
         // 뭔진 잘 모르겠다
         // 반사광의 밝기를 조절해주는 듯 하다
-        spec *= scol*t2.x + (1.0 - scol)*t2.y;
+        
 
         // mat3(1) = 3*3 identity matrix
         // identity matrix에 대한 LTC는 바로 그냥 cosine이다.
         // 즉 이에 대한 illumination을 계산한다는 것은, 
         // perfect lambertian illumination을 계산한다는 것을 뜻한다
-
-        vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
         vec3 diff = LTC_Evaluate(N, V, pos, mat3(1), points, twoSided);
-        diff -= obstacle_diff;
+        
+        if(shadow)
+        {
+            // Obstacle LTC Evaluate
+            int num_vertex;
+            vec3 clipped_points[8];
+            clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, pos);
+    
+            vec3 obstacle_spec = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points, num_vertex, twoSided);
+            spec -= obstacle_spec;
+            vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
+            diff -= obstacle_diff;
+        }
 
+        spec *= scol*t2.x + (1.0 - scol)*t2.y;
         col = lcol*(spec + dcol*diff);
     }
 
@@ -859,7 +860,7 @@ void main()
             vec3 target = clipped_points[i];
             bool hitViewPt = camHitPoint(target);
             if(hitViewPt){
-                col = vec3(1,0,0);
+                col = vec3(0,0,1);
             }
         }
         
