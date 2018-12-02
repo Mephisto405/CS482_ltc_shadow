@@ -358,6 +358,46 @@ vec3 LTC_Evaluate(
     return Lo_i;
 }
 
+vec3 LTC_Obstacle_Evaluate(
+    vec3 N, vec3 V, vec3 P, mat3 Minv, vec3 points[8], int num_vertex, bool twoSided)
+{
+    vec3 T1, T2;
+    T1 = normalize(V - N*dot(V, N));
+    T2 = cross(N, T1);
+
+    Minv = mul(Minv, transpose(mat3(T1, T2, N)));
+
+    vec3 L[points.length()+1];
+    for(int i = 0; i < num_vertex; i++) //
+    {
+        L[i] = mul(Minv, points[i] - P);
+    }
+
+    // integrate
+    float sum = 0.0;
+
+    if (num_vertex == 0)
+        return vec3(0, 0, 0);
+    // project onto sphere
+    for(int i = 0; i < num_vertex; i++)
+    {
+        L[i] = normalize(L[i]);
+    }
+
+    // integrate
+    for(int i = 0; i < num_vertex-1; i++)
+    {
+        sum += IntegrateEdge(L[i], L[i+1]);
+    }
+    sum += IntegrateEdge(L[num_vertex-1], L[0]);
+
+    sum = twoSided ? abs(sum) : max(0.0, sum);
+
+    vec3 Lo_i = vec3(sum, sum, sum);
+
+    return Lo_i;
+}
+
 // Scene helpers
 ////////////////
 
@@ -570,7 +610,7 @@ void main()
 
     // Initialize a square obstacle
     Rect obstacle;
-    InitObstacle(obstacle, vec3(2,2,28), 4.0, 4.0);
+    InitObstacle(obstacle, vec3(2,7,28), 4.0, 14.0);
     vec3 obstaclePoints[4];
     InitRectPoints(obstacle, obstaclePoints);
 
@@ -624,9 +664,24 @@ void main()
             vec3(t1.z, 0, t1.w)
         );
 
+        // Obstacle LTC Evaluate
+        int num_vertex;
+        vec3 clipped_points[8];
+        clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, pos);
+
+        vec3 obstacle_spec = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points, num_vertex, twoSided);
+        vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
+
         // points: each vertex of the polyonal light
         // LTC_Evaluate returns vec3 =  three color coordinates
         vec3 spec = LTC_Evaluate(N, V, pos, Minv, points, twoSided);
+        spec -= obstacle_spec;
+        
+        // if (num_vertex == 0)
+        // {
+        //     spec *= 2.0;
+        // }
+
         // BRDF shadowing and Fresnel
         // 뭔진 잘 모르겠다
         // 반사광의 밝기를 조절해주는 듯 하다
@@ -637,6 +692,7 @@ void main()
         // 즉 이에 대한 illumination을 계산한다는 것은, 
         // perfect lambertian illumination을 계산한다는 것을 뜻한다
         vec3 diff = LTC_Evaluate(N, V, pos, mat3(1), points, twoSided);
+        diff -= obstacle_diff;
 
         col = lcol*(spec + dcol*diff);
     }
