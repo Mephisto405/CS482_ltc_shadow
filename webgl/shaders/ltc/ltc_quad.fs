@@ -1,13 +1,11 @@
 // bind shadow      {label:"Shadow On", default:true}
 // bind shadow_debug {label:"Debug mode", default:false}
-// bind second_obstacle {label: "Second Obstacle", default:false}
 
 // bind targetu     {label:"Target u", default:0.0, min:-1.0, max:1.0, step:0.01}
 // bind targetv     {label:"Target v", default:0.0, min:-1.0, max:1.0, step:0.01}
 
 // bind width_obstacle       {label:"Obstacle Width",  default: 8, min:0.1, max:15, step:0.1}
 // bind height_obstacle      {label:"Obstacle Height", default: 8, min:0.1, max:15, step:0.1}
-// bind roty_obstacle        {label:"Obstacle Rotation Y", default: 0, min:0, max:1, step:0.001}
 // bind rotz_obstacle        {label:"Obstacle Rotation Z", default: 0, min:0, max:1, step:0.001}
 // bind posx                 {label:"Obstacle Position X", default: 5, min:0, max:10, step:0.1}
 
@@ -38,7 +36,6 @@ uniform float targetv;
 // obstacle shape
 uniform float width_obstacle;
 uniform float height_obstacle;
-uniform float roty_obstacle;
 uniform float rotz_obstacle;
 uniform float posx;
 
@@ -46,7 +43,6 @@ bool twoSided = false;
 uniform bool clipless;
 uniform bool shadow_debug;
 uniform bool shadow;
-uniform bool second_obstacle;
 
 uniform sampler2D ltc_1;
 uniform sampler2D ltc_2;
@@ -453,6 +449,8 @@ void InitRectPoints(Rect rect, out vec3 points[4])
 
 void InitObstacle(out Rect square, vec3 center, float w, float h)
 {
+    float roty_obstacle;
+
     square.dirx = rotation_yz(vec3(1, 0, 0), roty_obstacle*2.0*pi, rotz_obstacle*2.0*pi); // should be an unit vector
     square.diry = rotation_yz(vec3(0, 1, 0), roty_obstacle*2.0*pi, rotz_obstacle*2.0*pi);
 
@@ -747,6 +745,8 @@ void main()
     float distToFloor;
     bool hitFloor = RayPlaneIntersect(ray, floorPlane, distToFloor);
 
+    bool second_obstacle = false;
+
     // if the fragment is floor, color is obtained by rendering Eq.
     if (hitFloor)
     {
@@ -806,7 +806,7 @@ void main()
             spec -= obstacle_spec;
             vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
             diff -= obstacle_diff;
-
+            
             if (second_obstacle)
             {
                 // Obstacle LTC Evaluate
@@ -819,6 +819,7 @@ void main()
                 vec3 obstacle_diff2 = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points2, num_vertex2, twoSided);
                 diff -= obstacle_diff2;
             }
+            
         }
 
         spec *= scol*t2.x + (1.0 - scol)*t2.y;
