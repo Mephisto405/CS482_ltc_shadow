@@ -9,13 +9,12 @@
 // bind rotz_obstacle        {label:"Obstacle Rotation Z", default: 0, min:0, max:1, step:0.001}
 // bind posx                 {label:"Obstacle Position X", default: 5, min:0, max:10, step:0.1}
 
-// bind roughness   {label:"Roughness", default:0.25, min:0.01, max:1, step:0.001}
+// bind roughness   {label:"Roughness", default:1, min:0.01, max:1, step:0.001}
 // bind dcolor      {label:"Diffuse Color",  r:1.0, g:1.0, b:1.0}
 // bind scolor      {label:"Specular Color", r:0.23, g:0.23, b:0.23}
 // bind intensity   {label:"Light Intensity", default:4, min:0, max:10}
 // bind width       {label:"Width",  default: 8, min:0.1, max:15, step:0.1}
 // bind height      {label:"Height", default: 8, min:0.1, max:15, step:0.1}
-// bind roty        {label:"Rotation Y", default: 0, min:-0.5, max:0.5, step:0.001}
 // bind rotz        {label:"Rotation Z", default: 0, min:0, max:1, step:0.001}
 // bind twoSided    {label:"Two-sided", default:false}
 // bind clipless    {label:"Clipless Approximation", default:false}
@@ -28,7 +27,7 @@ uniform vec3  scolor;
 uniform float intensity;
 uniform float width;
 uniform float height;
-uniform float roty;
+float roty = 0.0;
 uniform float rotz;
 uniform float targetu;
 uniform float targetv;
@@ -719,12 +718,12 @@ void main()
 
     // Initialize a square obstacle
     Rect obstacle;
-    InitObstacle(obstacle, vec3(posx,7,28), width_obstacle, height_obstacle);
+    InitObstacle(obstacle, vec3(posx,7.5,28), width_obstacle, height_obstacle);
     vec3 obstaclePoints[4];
     InitRectPoints(obstacle, obstaclePoints);
 
     Rect obstacle2;
-    InitObstacle(obstacle2, vec3(-posx,7,28), width_obstacle, height_obstacle);
+    InitObstacle(obstacle2, vec3(-posx,7.5,28), width_obstacle, height_obstacle);
     vec3 obstaclePoints2[4];
     InitRectPoints(obstacle2, obstaclePoints2);
 
