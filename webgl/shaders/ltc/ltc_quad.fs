@@ -21,6 +21,7 @@
 // bind rotz        {label:"Rotation Z", default: 0, min:0, max:1, step:0.001}
 // bind twoSided    {label:"Two-sided", default:false}
 // bind clipless    {label:"Clipless Approximation", default:false}
+// bind groundTruth {label:"Ground Truth", default:false}
 
 
 uniform float roughness;
@@ -47,6 +48,7 @@ uniform bool clipless;
 uniform bool shadow_debug;
 uniform bool shadow;
 uniform bool second_obstacle;
+uniform bool groundTruth;
 
 uniform sampler2D ltc_1;
 uniform sampler2D ltc_2;
@@ -59,6 +61,7 @@ const float LUT_SIZE  = 64.0;
 const float LUT_SCALE = (LUT_SIZE - 1.0)/LUT_SIZE;
 const float LUT_BIAS  = 0.5/LUT_SIZE;
 
+const int   NUM_SAMPLES = 1;
 const float pi = 3.14159265;
 
 // Tracing and intersection
@@ -424,6 +427,107 @@ vec3 LTC_Obstacle_Evaluate(
     return Lo_i;
 }
 
+
+// TODO: replace this
+float rand(vec2 co)
+{
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float Halton(int index, float base)
+{
+    float result = 0.0;
+    float f = 1.0/base;
+    float i = float(index);
+    for (int x = 0; x < 8; x++)
+    {
+        if (i <= 0.0) break;
+
+        result += f*mod(i, base);
+        i = floor(i/base);
+        f = f/base;
+    }
+
+    return result;
+}
+
+void Halton2D(out vec2 s[NUM_SAMPLES], int offset)
+{
+    for (int i = 0; i < NUM_SAMPLES; i++)
+    {
+        s[i].x = Halton(i + offset, 2.0);
+        s[i].y = Halton(i + offset, 3.0);
+    }
+}
+
+vec3 LTC_GroundTruth(
+    vec3 N, vec3 V, vec3 P, mat3 Minv, vec3 points[4], bool twoSided, float u1, float u2)
+{
+    vec3 T1, T2;
+    T1 = normalize(V - N*dot(V, N));
+    T2 = cross(N, T1);
+
+    Minv = mul(Minv, transpose(mat3(T1, T2, N)));
+
+    vec3 L[4];
+    for(int i = 0; i < 4; i++)
+    {
+        L[i] = mul(Minv, points[i] - P);
+    }
+    
+    // integrate
+    float sum = 0.0;
+
+    float w = sqrt(dot(L[2]-L[1], L[2]-L[1]));
+    float h = sqrt(dot(L[3]-L[2], L[3]-L[2]));
+
+    float lightArea = w*h;
+
+    // light sample
+    {
+        float rad = sqrt(u1);
+        float phi = 2.0*pi*u2;
+        float x = rad*cos(phi);
+        float y = rad*sin(phi);
+        vec3 dir = vec3(x, y, sqrt(1.0 - u1));
+
+        Ray ray;
+        ray.origin = P;
+        ray.dir = dir;
+
+        Rect rect;
+        rect.dirx = rotation_yz(vec3(1, 0, 0), roty*2.0*pi, rotz*2.0*pi);
+        rect.diry = rotation_yz(vec3(0, 1, 0), roty*2.0*pi, rotz*2.0*pi);
+
+        rect.center = vec3(0, 6, 32);
+        rect.halfx  = 0.5*width;
+        rect.halfy  = 0.5*height;
+
+        vec3 rectNormal = cross(rect.dirx, rect.diry);
+        rect.plane = vec4(rectNormal, -dot(rectNormal, rect.center));
+
+        float distToRect;
+        bool hitLight = RayRectIntersect(ray, rect, distToRect);
+
+        float cosTheta = max(dir.z, 0.0);
+        float brdf = 1.0/pi;
+        float pdfBRDF = cosTheta/pi;
+
+        float c2 = max(dot(dir, rectNormal), 0.0);
+        float solidAngle = max(c2/distToRect/distToRect, 1e-7);
+        float pdfLight = 1.0/solidAngle/lightArea;
+        
+        if (hitLight)
+        {
+            sum += brdf*cosTheta/(pdfBRDF + pdfLight);
+        }
+    }
+
+    vec3 Lo_i = vec3(sum, sum, sum);
+
+    return Lo_i;
+}
+
 // Scene helpers
 ////////////////
 
@@ -780,44 +884,63 @@ void main()
             vec3(t1.z, 0, t1.w)
         );
 
-        // points: each vertex of the polyonal light
-        // LTC_Evaluate returns vec3 =  three color coordinates
-        vec3 spec = LTC_Evaluate(N, V, pos, Minv, points, twoSided);
-
-        // BRDF shadowing and Fresnel
-        // 뭔진 잘 모르겠다
-        // 반사광의 밝기를 조절해주는 듯 하다
+        vec3 spec;
+        vec3 diff;
         
-
-        // mat3(1) = 3*3 identity matrix
-        // identity matrix에 대한 LTC는 바로 그냥 cosine이다.
-        // 즉 이에 대한 illumination을 계산한다는 것은, 
-        // perfect lambertian illumination을 계산한다는 것을 뜻한다
-        vec3 diff = LTC_Evaluate(N, V, pos, mat3(1), points, twoSided);
-        
-        if(shadow)
+        if (groundTruth)
         {
-            // Obstacle LTC Evaluate
-            int num_vertex;
-            vec3 clipped_points[8];
-            clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, pos);
-    
-            vec3 obstacle_spec = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points, num_vertex, twoSided);
-            spec -= obstacle_spec;
-            vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
-            diff -= obstacle_diff;
+            // random sampling
+            vec2 seq[NUM_SAMPLES];
+            Halton2D(seq, sampleCount);
 
-            if (second_obstacle)
+            float u1 = rand(gl_FragCoord.xy*0.01);
+            float u2 = rand(gl_FragCoord.yx*0.01);
+
+            u1 = fract(u1 + seq[0].x);
+            u2 = fract(u2 + seq[0].y);
+
+            spec = LTC_GroundTruth(N, V, pos, Minv, points, twoSided, u1, u2);
+            diff = LTC_GroundTruth(N, V, pos, mat3(1), points, twoSided, u1, u2);
+        }
+        else
+        {
+            spec = LTC_Evaluate(N, V, pos, Minv, points, twoSided);
+
+            // BRDF shadowing and Fresnel
+            // 뭔진 잘 모르겠다
+            // 반사광의 밝기를 조절해주는 듯 하다
+            
+    
+            // mat3(1) = 3*3 identity matrix
+            // identity matrix에 대한 LTC는 바로 그냥 cosine이다.
+            // 즉 이에 대한 illumination을 계산한다는 것은, 
+            // perfect lambertian illumination을 계산한다는 것을 뜻한다
+            diff = LTC_Evaluate(N, V, pos, mat3(1), points, twoSided);
+            
+            if(shadow)
             {
                 // Obstacle LTC Evaluate
-                int num_vertex2;
-                vec3 clipped_points2[8];
-                clipProjectObstacle(clipped_points2, num_vertex2, points, obstaclePoints2, pos);
+                int num_vertex;
+                vec3 clipped_points[8];
+                clipProjectObstacle(clipped_points, num_vertex, points, obstaclePoints, pos);
         
-                vec3 obstacle_spec2 = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points2, num_vertex2, twoSided);
-                spec -= obstacle_spec2;
-                vec3 obstacle_diff2 = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points2, num_vertex2, twoSided);
-                diff -= obstacle_diff2;
+                vec3 obstacle_spec = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points, num_vertex, twoSided);
+                spec -= obstacle_spec;
+                vec3 obstacle_diff = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points, num_vertex, twoSided);
+                diff -= obstacle_diff;
+    
+                if (second_obstacle)
+                {
+                    // Obstacle LTC Evaluate
+                    int num_vertex2;
+                    vec3 clipped_points2[8];
+                    clipProjectObstacle(clipped_points2, num_vertex2, points, obstaclePoints2, pos);
+            
+                    vec3 obstacle_spec2 = LTC_Obstacle_Evaluate(N, V, pos, Minv, clipped_points2, num_vertex2, twoSided);
+                    spec -= obstacle_spec2;
+                    vec3 obstacle_diff2 = LTC_Obstacle_Evaluate(N, V, pos, mat3(1), clipped_points2, num_vertex2, twoSided);
+                    diff -= obstacle_diff2;
+                }
             }
         }
 
